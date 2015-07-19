@@ -157,7 +157,7 @@
       keysToRemove = Array.prototype.slice.call(arguments);
     }
 
-    var result = {};
+    var result = cloneWithPrototype(this);
 
     for (var key in this) {
       if (this.hasOwnProperty(key) && (keysToRemove.indexOf(key) === -1)) {
@@ -228,6 +228,11 @@
     return dest;
   }
 
+  function cloneWithPrototype(obj) {
+    var proto = Object.getPrototypeOf(obj);
+    return proto !== Object.prototype ? Object.create(proto) : {};
+  }
+
   /**
    * Returns an Immutable Object containing the properties and values of both
    * this object and the provided object, prioritizing the provided object's
@@ -247,8 +252,10 @@
       throw new TypeError("Immutable#merge can only be invoked with objects or arrays, not " + JSON.stringify(other));
     }
 
+    var clone = cloneWithPrototype(this);
+
     var anyChanges    = false,
-        result        = quickCopy(this, {}), // A shallow clone of this object.
+        result        = quickCopy(this, clone), // A shallow clone of this object.
         receivedArray = (other instanceof Array),
         deep          = config && config.deep,
         merger        = config && config.merger,
@@ -307,7 +314,7 @@
   }
 
   function asMutableObject(opts) {
-    var result = {}, key;
+    var result = cloneWithPrototype(this), key;
 
     if(opts && opts.deep) {
       for (key in this) {
@@ -358,10 +365,36 @@
       return makeImmutableObject(clone);
     }
   }
+                                                        
+  function ImmutableWithPrototype(obj) {
+    // If the user passes multiple arguments, assume what they want is an array.
+    if (arguments.length > 1) {
+      return makeImmutableArray(Array.prototype.slice.call(arguments));
+    } else if (isImmutable(obj)) {
+      return obj;
+    } else if (obj instanceof Array) {
+      return makeImmutableArray(obj.slice());
+    } else if (obj instanceof Date) {
+      return makeImmutable(new Date(obj.getTime()));
+    } else {
+      // Don't freeze the object we were given; make a clone and use that.
+      var proto = Object.getPrototypeOf(obj);
+      var clone = proto !== Object.prototype ? Object.create(proto) : {};
 
+      for (var key in obj) {
+        if (obj.hasOwnProperty(key)) {
+          clone[key] = Immutable(obj[key]);
+        }
+      }
+
+      return makeImmutableObject(clone);
+    }
+  }
+                                                        
   // Export the library
   Immutable.isImmutable    = isImmutable;
   Immutable.ImmutableError = ImmutableError;
+  Immutable.ImmutableWithPrototype = ImmutableWithPrototype;
 
   Object.freeze(Immutable);
 
